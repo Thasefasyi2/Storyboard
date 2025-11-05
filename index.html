@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Storyboard Gallery</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #f9f9f9;
+    margin: 0;
+    padding: 20px;
+  }
+  header {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  h1 {
+    margin-bottom: 10px;
+  }
+  .refresh-btn {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background 0.3s;
+  }
+  .refresh-btn:hover {
+    background: #1f7a32;
+  }
+  #gallery {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+  }
+  .scane {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    width: 280px;
+    overflow: hidden;
+    text-align: center;
+    padding-bottom: 10px;
+  }
+  .scane img {
+    width: 100%;
+    height: auto;
+    border-bottom: 1px solid #ddd;
+  }
+  .text-area {
+    width: 90%;
+    margin: 10px auto;
+    height: 100px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 8px;
+    resize: vertical;
+  }
+  .missing-text {
+    color: red;
+    font-style: italic;
+    margin-top: 5px;
+  }
+  button {
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background 0.3s;
+  }
+  button:hover {
+    background: #0056b3;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Storyboard Gallery</h1>
+  <button class="refresh-btn" onclick="refreshGallery()">🔄 Refresh Gallery</button>
+</header>
+
+<div id="gallery"></div>
+
+<script>
+// =========================
+// Cek apakah gambar valid (pakai <img> object)
+// =========================
+function checkImageExists(url) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+    img.src = url + "?t=" + Date.now();
+  });
+}
+
+// =========================
+// Fungsi load scane dinamis dari /bahan
+// =========================
+async function loadScane() {
+  const gallery = document.getElementById("gallery");
+  gallery.innerHTML = "";
+
+  let i = 1;
+  while (true) {
+    // === CEK GAMBAR DI /revisi DULU, KALAU TIDAK ADA, GUNAKAN /bahan ===
+    let imagePath = `revisi/scane${i}.png`;
+    let exists = await checkImageExists(imagePath);
+    if (!exists) {
+      imagePath = `bahan/scane${i}.png`; // fallback
+      exists = await checkImageExists(imagePath);
+    }
+    if (!exists) break; // berhenti jika tidak ada gambar sama sekali
+
+    // === BUAT KOTAK SCENE ===
+    const scaneDiv = document.createElement("div");
+    scaneDiv.className = "scane";
+
+    const title = document.createElement("h3");
+    title.textContent = `Scane ${i}`;
+
+    const img = document.createElement("img");
+    img.src = imagePath + "?t=" + Date.now();
+    img.alt = `Scane ${i}`;
+
+    const textarea = document.createElement("textarea");
+    textarea.className = "text-area";
+    textarea.placeholder = "Masukkan prompt di sini...";
+
+    const missingMsg = document.createElement("div");
+    missingMsg.className = "missing-text";
+
+    // === CEK TEKS DI /revisi DULU, KALAU TIDAK ADA, GUNAKAN /bahan ===
+    let text = "";
+    try {
+      let res = await fetch(`revisi/scane${i}.txt?t=${Date.now()}`);
+      if (res.ok) {
+        text = await res.text();
+      } else {
+        throw new Error("no revisi");
+      }
+      if (text.trim().startsWith("<!DOCTYPE html")) throw new Error("html fallback");
+    } catch {
+      try {
+        const res2 = await fetch(`bahan/scane${i}.txt?t=${Date.now()}`);
+        text = res2.ok ? await res2.text() : "";
+      } catch {
+        text = "";
+      }
+    }
+
+    if (!text) missingMsg.textContent = `scane${i}.txt tidak ada`;
+    textarea.value = text;
+
+    // === TOMBOL RE-RUN ===
+    const rerunBtn = document.createElement("button");
+    rerunBtn.textContent = "🔁 Re-run";
+    rerunBtn.onclick = async () => {
+      const prompt = textarea.value.trim();
+      if (!prompt) return alert("Isi prompt dahulu.");
+      await generateImage(prompt, i); 
+    };
+
+    // === SUSUN SEMUA ELEMEN ===
+    scaneDiv.appendChild(title);
+    scaneDiv.appendChild(img);
+    scaneDiv.appendChild(textarea);
+    scaneDiv.appendChild(missingMsg);
+    scaneDiv.appendChild(rerunBtn);
+    gallery.appendChild(scaneDiv);
+
+    i++;
+  }
+
+  if (i === 1) {
+    gallery.innerHTML = "<p style='text-align:center;color:red;'>Tidak ada scane ditemukan.</p>";
+  }
+}
+
+function refreshGallery() {
+  loadScane();
+}
+
+loadScane();
+</script>
+<script src="gen.js"></script>
+
+</body>
+</html>
